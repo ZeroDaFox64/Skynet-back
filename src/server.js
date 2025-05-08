@@ -28,7 +28,7 @@ const limiter = rateLimit({
 app.use(limiter);
 app.use(cors(
   {
-    origin: ["http://localhost:5173", "https://nittogame.com", "https://nitto-site-develop.onrender.com"],
+    origin: ["http://localhost:5173", "https://japan-gallery.onrender.com"],
     credentials: true
   }
 ));
