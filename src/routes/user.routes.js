@@ -6,7 +6,6 @@ const {
   getUser,
   updateUser,
   deleteUser,
-  uploadAvatar,
 } = require("../controllers/user.controller");
 const { verifyToken, isAdmin } = require("../middlewares/auth");
 
@@ -18,6 +17,5 @@ router.get("/user", verifyToken, isAdmin, getUsers); // Obtener todos los usuari
 router.get("/user/:id", verifyToken, getUser); // Obtener un usuario
 router.put("/user/:id", verifyToken, updateUser); // Actualizar usuario
 router.delete("/user/:id", verifyToken, isAdmin, deleteUser); // Borrar usuario
-router.post("/user/avatar/:id", verifyToken, uploadAvatar); // Subir avatar
 
 module.exports = router;

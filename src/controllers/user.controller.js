@@ -1,16 +1,7 @@
 const User = require("../models/User/User");
-const AWS = require("aws-sdk");
 const bcrypt = require("bcrypt");
 const { str10_36 } = require("hyperdyperid/lib/str10_36");
 const { paginate } = require("../config/utils");
-
-const spacesEndpoint = new AWS.Endpoint(process.env.ENDPOINT);
-
-const s3 = new AWS.S3({
-  endpoint: spacesEndpoint,
-  accessKeyId: process.env.SPACES_KEY,
-  secretAccessKey: process.env.SPACES_SECRET,
-});
 
 /**
  * Registrar un nuevo usuario
@@ -341,70 +332,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-/**
- * Subir avatar de un usuario
- */
-const uploadAvatar = async (req, res) => {
-  if (!req.files) return res.json({ msg: "No hay archivos" });
 
-  const { avatar } = req.files; // Obtener el archivo de la imagen
-  const { id } = req.params; // Obtener el ID del usuario
-  const idImage = str10_36(); // Generar un ID aleatorio para la imagen
-
-  const maxSize = 5 * 1024 * 1024; // 5 MB
-  const allowedTypes = ["image/jpeg", "image/png", "image/jpg"]; // Tipos de archivos permitidos
-
-  if (!allowedTypes.includes(avatar.mimetype)) {
-    return res.status(400).json({ message: "Tipo de archivo no permitido" });
-  }
-
-  if (avatar.size > maxSize) {
-    return res.status(400).json({ message: "El archivo es demasiado grande" });
-  }
-
-  const user = await User.findOne({ _id: id });
-
-  if (user.avatar) {
-    // Obtener la clave de la imagen anterior
-    const startIndex = user.avatar.indexOf("avatars/");
-    const oldKey = user.avatar.slice(startIndex);
-
-    // Eliminar avatar anterior
-    await s3
-      .deleteObject({
-        Bucket: process.env.BUCKET_NAME,
-        Key: oldKey,
-      })
-      .promise();
-  }
-
-  try {
-    // Subir avatar nuevo
-    await s3
-      .putObject({
-        ACL: "public-read",
-        Bucket: process.env.BUCKET_NAME,
-        Body: avatar.data,
-        Key: `avatars/${idImage}${id}`,
-      })
-      .promise();
-
-    const urlImage = `https://${process.env.BUCKET_NAME}.${process.env.ENDPOINT}/avatars/${idImage}${id}`;
-
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: id },
-      { avatar: urlImage },
-      { new: true }
-    );
-
-    if (!updatedUser)
-      return res.status(400).json({ message: "Error al subir avatar" });
-
-    return res.status(200).json({ message: "Avatar subido con éxito" });
-  } catch (err) {
-    return res.status(400).json({ message: "Error al subir avatar", error: err.message });
-  }
-};
 
 module.exports = {
   registerUser,
@@ -413,5 +341,4 @@ module.exports = {
   getUser,
   updateUser,
   deleteUser,
-  uploadAvatar,
 };

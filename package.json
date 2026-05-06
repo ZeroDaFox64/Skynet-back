@@ -2,6 +2,7 @@
   "name": "nitto_back",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
@@ -11,8 +12,6 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.751.0",
-    "aws-sdk": "^2.1692.0",
     "bcrypt": "^5.1.1",
     "colors": "^1.4.0",
     "cookie-parser": "^1.4.7",
@@ -27,7 +26,10 @@
     "mongoose": "^8.9.5",
     "mongoose-paginate-v2": "^1.9.0",
     "nodemailer": "^6.10.0",
+    "pg": "^8.20.0",
+    "pg-hstore": "^2.3.4",
     "postmark": "^4.0.5",
+    "sequelize": "^6.37.8",
     "speakeasy": "^2.0.0"
   },
   "devDependencies": {

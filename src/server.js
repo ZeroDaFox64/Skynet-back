@@ -44,23 +44,9 @@ app.use(
 // Routes
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
-const accountRoutes = require("./routes/account.routes");
-const providerRoutes = require("./routes/provider.routes");
-const serviceRoutes = require("./routes/service.routes");
-const subscriptionRoutes = require("./routes/suscription.routes");
-const productRoutes = require("./routes/product.routes");
-const productCategoryRoutes = require("./routes/productCategory.routes");
-const chartRoutes = require("./routes/chart.routes");
 
 app.use("/api/v1", authRoutes);
 app.use("/api/v1", userRoutes);
-app.use("/api/v1", accountRoutes);
-app.use("/api/v1", providerRoutes);
-app.use("/api/v1", serviceRoutes);
-app.use("/api/v1", subscriptionRoutes);
-app.use("/api/v1", productRoutes);
-app.use("/api/v1", productCategoryRoutes);
-app.use("/api/v1", chartRoutes);
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
