@@ -1,4 +1,4 @@
-const User = require("../models/User/User");
+const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const { str10_36 } = require("hyperdyperid/lib/str10_36");
 const { paginate } = require("../config/utils");
@@ -7,12 +7,12 @@ const { paginate } = require("../config/utils");
  * Registrar un nuevo usuario
  */
 const registerUser = async (req, res) => {
-  const { email, username, password, name, lastname, phone, rol, observations } = req.body;
+  const { email, password, name, rol } = req.body;
 
   // Validar campos obligatorios
-  if (!username || !email) {
+  if (!name || !email || !password || !rol) {
     return res.status(400).json({
-      message: "Datos incompletos: username y email son obligatorios",
+      message: "Datos incompletos: faltan datos obligatorios",
     });
   }
 

@@ -1,9 +1,9 @@
-const express = require("express");
+const express = require("express"); 
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const morgan = require("morgan");
-const connectDB = require("./config/db");
+const { connectDB } = require("./config/db");
 const fileUpload = require("express-fileupload")
 const path = require("path");
 require("dotenv").config();

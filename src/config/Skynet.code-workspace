@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../Skynet"
+		},
+		{
+			"name": "Skynet-back",
+			"path": "../.."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "Skynet"
+	}
+}
