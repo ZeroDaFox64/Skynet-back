@@ -7,62 +7,70 @@ const { paginate } = require("../config/utils");
  * Registrar un nuevo usuario
  */
 const registerUser = async (req, res) => {
-  const { email, password, name, rol } = req.body;
+  // Nota: Agregué las variables faltantes para que no den error (lastname, phone, etc.)
+  const { email, password, username} = req.body;
 
-  // Validar campos obligatorios
-  if (!name || !email || !password || !rol) {
+  // 1. Validar campos obligatorios
+  if (!username || !email || !password) {
     return res.status(400).json({
       message: "Datos incompletos: faltan datos obligatorios",
     });
   }
 
-  // Validar formato de correo electrónico
+  // 2. Validar formato de correo electrónico
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return res
-      .status(400)
-      .json({ message: "Formato de correo electrónico inválido" });
+    return res.status(400).json({ 
+      message: "Formato de correo electrónico inválido" 
+    });
   }
 
-  let hash;
-  if (password) hash = await bcrypt.hash(password, 10);
-
   try {
-    // Verificar si el usuario ya existe
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    // 3. Verificar si el usuario ya existe
+    // En Sequelize usamos findOne con la propiedad 'where'
+    const existingUser = await User.findOne({ 
+      where: { email: email.toLowerCase() } 
+    });
+
     if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "El correo electrónico ya está registrado" });
+      return res.status(400).json({ 
+        message: "El correo electrónico ya está registrado" 
+      });
     }
 
-    const newUser = new User({
-      username,
+    // 4. Hashear la contraseña
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(password, saltRounds);
+
+    // 5. Crear el usuario
+    // .create() combina build() y save() en un solo paso
+    const newUser = await User.create({
       email: email.toLowerCase(),
-      password: password ? hash : 'contraseña',
-      rol: rol ? rol : 'user',
-      name: name || null,
-      lastname: lastname || null,
-      phone: phone || null,
-      observations: observations || null,
+      password: hash,
+      role: 'user',
+      name: username,
+      company_id: 0,
     });
 
-    await newUser.save();
+    // 6. Respuesta exitosa (excluyendo el password por seguridad)
+    const { password: _, ...userResponse } = newUser.toJSON();
 
-    return res.status(200).json({
-      user: {
-        ...newUser,
-      },
+    return res.status(201).json({
+      user: userResponse,
     });
+
   } catch (err) {
-    if (err.name === "ValidationError") {
-      return res
-        .status(400)
-        .json({ message: "Error de validación: " + err.message });
+    // Manejo de errores específicos de Sequelize (Constraint violations, etc.)
+    if (err.name === "SequelizeValidationError" || err.name === "SequelizeUniqueConstraintError") {
+      return res.status(400).json({ 
+        message: "Error de validación: " + err.errors.map(e => e.message).join(", ") 
+      });
     }
-    return res
-      .status(500)
-      .json({ message: "Error interno del servidor al registrar el usuario" });
+    
+    console.error("Error en registerUser:", err);
+    return res.status(500).json({ 
+      message: "Error interno del servidor al registrar el usuario" 
+    });
   }
 };
 

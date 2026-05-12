@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/db.js'); // Asegúrate de que este archivo tiene la config SSL de Render
 
-const User = sequelize.define('User', {
+const user = sequelize.define('user', {
   email: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -14,7 +14,7 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  rol: {
+  role: {
     type: DataTypes.STRING,
     allowNull: false,
   },
@@ -39,4 +39,5 @@ const User = sequelize.define('User', {
   tableName: 'users',     // Nombre de la tabla en la base de datos
 });
 
-module.exports = User;
+module.exports = user;
+
