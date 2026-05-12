@@ -2,34 +2,39 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
 const verifyToken = async (req, res, next) => {
-  const token = req.headers["authorization"];
+  // 1. Obtener el token del header
+  let token = req.headers["authorization"];
 
-  // Si no hay token, devuelve error
   if (!token) {
-    return res.status(400).json({ message: "No hay una sesión activa." });
+    return res.status(401).json({ message: "No hay una sesión activa." });
+  }
+
+  // 2. Limpiar el token si viene con el prefijo "Bearer "
+  if (token.startsWith("Bearer ")) {
+    token = token.slice(7, token.length);
   }
 
   try {
-    // Verificar y decodificar el token
+    // 3. Verificar y decodificar el token
     const userSession = jwt.verify(token, process.env.SECRET_JWT_KEY);
 
-    // Buscar el usuario en la base de datos
-    const user = await User.findOne({ _id: userSession.id });
+    // 4. Buscar el usuario en Postgres usando Sequelize
+    // Cambiamos _id por id y usamos el objeto { where }
+    const user = await User.findOne({ 
+      where: { id: userSession.id } 
+    });
 
-    // Si el usuario no existe, devuelve error
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado." });
     }
 
-    // Adjuntar el usuario al objeto req para su uso en rutas posteriores
+    // 5. Adjuntar el usuario (instancia de Sequelize) al objeto req
     req.user = user;
-
-    // Continuar con el siguiente middleware o controlador
     next();
+
   } catch (error) {
     console.error("Error verificando token:", error);
 
-    // Manejar errores específicos de JWT
     if (error.name === "JsonWebTokenError") {
       return res.status(401).json({ message: "Token no válido." });
     }
@@ -38,25 +43,27 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ message: "La sesión ha expirado." });
     }
 
-    // Error genérico del servidor
-    return res
-      .status(500)
-      .json({ message: "Error interno del servidor al verificar el token." });
+    return res.status(500).json({ 
+      message: "Error interno del servidor al verificar el token." 
+    });
   }
 };
 
 const isAdmin = async (req, res, next) => {
-  // Si el usuario no está autenticado, devuelve error
   if (!req.user) {
     return res.status(401).json({ message: "No estás autenticado." });
   }
 
-  // Si el usuario no es admin, devuelve error
-  if (["superadmin", "admin"].indexOf(req.user.rol) === -1) {
-    return res.status(403).json({ message: "No tienes permisos para acceder a esta ruta." });
+  // IMPORTANTE: En tu modelo de Sequelize pusiste "rol", 
+  // así que aquí usamos req.user.rol (no role)
+  const allowedRoles = ["superadmin", "admin"];
+  
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({ 
+      message: "Acceso denegado: Se requieren permisos de administrador." 
+    });
   }
 
-  // Continuar con el siguiente middleware o controlador
   next();
 };
 

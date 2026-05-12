@@ -12,63 +12,62 @@ const client = new postmark.ServerClient(process.env.POSTMARK_API_KEY);
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
-  // Validar que el email y la contraseña estén presentes
   if (!email || !password) {
     return res.status(400).json({ message: "Email y contraseña son requeridos." });
   }
 
   try {
-    // Buscar el usuario por email (insensible a mayúsculas/minúsculas)
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // 1. Buscar el usuario (Usando el objeto 'where' de Sequelize)
+    const user = await User.findOne({
+      where: { email: email.toLowerCase() }
+    });
 
-    // Verificar si el usuario existe
+    // 2. Verificar si el usuario existe
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado." });
     }
 
-    // Verificar si la contraseña es correcta
+    // 3. Verificar la contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Contraseña incorrecta." });
     }
 
-    // Generar un token JWT
-    const token = jwt.sign({ id: user._id }, process.env.SECRET_JWT_KEY, {
-      expiresIn: "1d",
-    });
+    // 4. Generar el token JWT (Cambiamos _id por id)
+    const token = jwt.sign(
+      { id: user.id },
+      process.env.SECRET_JWT_KEY,
+      { expiresIn: "1d" }
+    );
 
-    // Crear un objeto de respuesta sin la contraseña
+    // 5. Preparar la respuesta (Sin la contraseña)
+    // Nota: Revisa si en tu modelo es "rol" o "role" para que no de undefined
     const userResponse = {
-      id: user._id,
-      username: user.username,
+      id: user.id,
       email: user.email,
-      rol: user.rol,
+      role: user.role, // En tu modelo definiste "rol", asegúrate que coincida
       name: user.name || null,
-      lastname: user.lastname || null,
-      phone: user.phone || null,
-      avatar: user.avatar || null,
-      shipping_address: user.shipping_address || null,
-      shipping_service: user.shipping_service || null,
     };
 
-    // Respuesta exitosa
     return res.status(200).json({
       message: "Inicio de sesión exitoso.",
       user: userResponse,
       token,
     });
+
   } catch (error) {
     console.error("Error en el inicio de sesión:", error);
 
-    // Manejar errores específicos
-    if (error.name === "ValidationError") {
-      return res.status(400).json({ message: "Error de validación." });
+    // Manejo de errores específicos de Sequelize (opcional)
+    if (error.name === 'SequelizeConnectionError') {
+      return res.status(503).json({ message: "Error de conexión con la base de datos." });
     }
 
-    // Error genérico del servidor
     return res.status(500).json({ message: "Error interno del servidor al iniciar sesión." });
   }
 };
+
+module.exports = { loginUser };
 
 /**
  * Enviar OTP al correo electrónico del usuario
@@ -77,7 +76,7 @@ const sendOTP = async (req, res) => {
   const { email } = req.body;
 
   // Buscar usuario en la DB
-  const user = await User.findOne({email: email.toLowerCase()});
+  const user = await User.findOne({ email: email.toLowerCase() });
 
   // Validar que el email esté presente
   if (!email) {
@@ -101,7 +100,7 @@ const sendOTP = async (req, res) => {
       secret: secret.base32,
       encoding: "base32",
     });
-    
+
     // Generar un token JWT que incluya el secreto y el email
     const token = jwt.sign(
       { secret: secret.base32, email: email.toLowerCase() },
@@ -136,7 +135,7 @@ const sendOTP = async (req, res) => {
       });
       await userTokens.save();
     }
-    
+
 
     // Respuesta exitosa
     return res.status(200).json({

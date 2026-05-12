@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const { str10_36 } = require("hyperdyperid/lib/str10_36");
 const { paginate } = require("../config/utils");
+const { Op } = require('sequelize');
 
 /**
  * Registrar un nuevo usuario
@@ -114,64 +115,57 @@ const getUsers = async (req, res) => {
   try {
     const { page = 1, limit = 20, filters, rol } = req.query;
 
-    // Construir el objeto de filtrado
-    const filterQuery = {};
+    // 1. Convertir a números para evitar errores en el cálculo
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    // 2. Construir el objeto de filtrado (where)
+    const where = {};
 
     if (rol) {
-      filterQuery.rol = rol;
+      where.rol = rol;
     }
 
     if (filters) {
-      // Crear un array con las propiedades del modelo User que deseas buscar
-      const searchableFields = [
-        "name",
-        "email",
-        "username",
-        "phone",
-        "lastname",
+      // Usamos [Op.or] y [Op.iLike] para búsqueda parcial e insensible a mayúsculas
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${filters}%` } },
+        { email: { [Op.iLike]: `%${filters}%` } }
       ];
-
-      // Crear un array de condiciones de búsqueda para cada campo
-      const searchConditions = searchableFields.map((field) => ({
-        [field]: { $regex: filters, $options: "i" },
-      }));
-
-      // Combinar las condiciones con el operador $or
-      filterQuery.$or = searchConditions;
     }
 
-    const paginateOptions = {
-      page,
-      limit,
-      sortBy: "created_at",
-      sortOrder: "desc",
-    };
+    // 3. Consultar usando findAndCountAll (devuelve filas y el total)
+    const { count, rows } = await User.findAndCountAll({
+      where,
+      limit: limitNum,
+      offset: offset,
+      order: [['createdAt', 'DESC']], // 'createdAt' es el estándar de Sequelize
+    });
 
-    // Usar la función paginate para obtener los usuarios
-    const result = await paginate(User, filterQuery, paginateOptions);
+    // 4. Calcular metadata de paginación
+    const totalPages = Math.ceil(count / limitNum);
 
-    // Respuesta exitosa
     return res.status(200).json({
-      users: result.docs,
+      users: rows,
       pagination: {
-        totalUsers: result.totalDocs,
-        totalPages: result.totalPages,
-        currentPage: result.page,
-        limit: result.limit,
+        totalUsers: count,
+        totalPages: totalPages,
+        currentPage: pageNum,
+        limit: limitNum,
       },
     });
+
   } catch (error) {
     console.error("Error obteniendo usuarios:", error);
 
-    // Manejar errores específicos
-    if (error.message === "Parámetros de paginación no válidos.") {
-      return res.status(400).json({ message: error.message });
+    if (error.name === 'SequelizeDatabaseError') {
+      return res.status(400).json({ message: "Error en la consulta a la base de datos." });
     }
 
-    // Error genérico del servidor
-    return res
-      .status(500)
-      .json({ message: "Error interno del servidor al obtener los usuarios." });
+    return res.status(500).json({ 
+      message: "Error interno del servidor al obtener los usuarios." 
+    });
   }
 };
 
@@ -181,7 +175,7 @@ const getUsers = async (req, res) => {
 const getUser = async (req, res) => {
   const { id } = req.params;
 
-  // Validar que el ID esté presente
+  // 1. Validar que el ID esté presente
   if (!id) {
     return res
       .status(400)
@@ -189,41 +183,36 @@ const getUser = async (req, res) => {
   }
 
   try {
-    // Buscar el usuario por ID
-    const user = await User.findOne({ _id: id });
+    // 2. Buscar el usuario por su Clave Primaria (ID)
+    // findByPk es más limpio que findOne({ where: { id } })
+    const user = await User.findByPk(id);
 
-    // Verificar si el usuario fue encontrado
+    // 3. Verificar si el usuario fue encontrado
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado." });
     }
 
-    // Seleccionar los campos que se devolverán en la respuesta
+    // 4. Seleccionar los campos para la respuesta
+    // Usamos .id (sin guion bajo) y .rol (como definimos en tu modelo de Postgres)
     const userResponse = {
-      id: user._id,
+      id: user.id,
       email: user.email,
-      username: user.username,
-      rol: user.rol || null,
+      role: user.role || null, 
       name: user.name || null,
-      lastname: user.lastname || null,
-      phone: user.phone || null,
-      shipping_address: user.shipping_address || null,
-      shipping_service: user.shipping_service || null,
-      avatar: user.avatar || null,
-      observations: user.observations || null,
-      created_at: user.created_at,
     };
 
-    // Respuesta exitosa
     return res.status(200).json({ user: userResponse });
+
   } catch (error) {
     console.error("Error obteniendo usuario:", error);
 
-    // Manejar errores específicos
-    if (error.name === "CastError") {
-      return res.status(400).json({ message: "ID de usuario no válido." });
+    // 5. Manejar errores de formato de ID
+    // En Postgres/Sequelize, si el ID no es del tipo correcto (ej. esperas un número y mandas texto)
+    // se lanza un DatabaseError con el código de error de sintaxis.
+    if (error.name === "SequelizeDatabaseError" || error.name === "SequelizeHostNotReachableError") {
+      return res.status(400).json({ message: "ID de usuario no válido o error de base de datos." });
     }
 
-    // Error genérico del servidor
     return res
       .status(500)
       .json({ message: "Error interno del servidor al obtener el usuario." });
@@ -240,19 +229,9 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: "No se ha encontrado un ID" });
   }
 
-  const allowedFields = [
-    "email",
-    "name",
-    "lastname",
-    "phone",
-    "username",
-    "shipping_address",
-    "shipping_service",
-    "observations",
-    "rol",
-  ];
+  // Ajustado a 'rol' para coincidir con tu modelo de Postgres
+  const allowedFields = ["email", "name", "rol"];
 
-  // Crear el objeto userData dinámicamente
   const userData = allowedFields.reduce((acc, field) => {
     if (req.body[field] !== undefined) {
       acc[field] = req.body[field];
@@ -261,40 +240,37 @@ const updateUser = async (req, res) => {
   }, {});
 
   try {
-    const user = await User.findOne({ _id: id });
+    // 1. Buscar si el usuario existe
+    const user = await User.findByPk(id);
+    
     if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    const updatedUser = await User.findOneAndUpdate({ _id: id }, userData, {
-      new: true,
-    });
+    // 2. Actualizar la instancia
+    await user.update(userData);
 
-    if (!updatedUser) {
-      return res.status(400).json({ message: "Error al actualizar usuario" });
-    }
-
-    // Seleccionar los campos que se devolverán en la respuesta
+    // 3. Respuesta con los datos actualizados
     const userResponse = {
-      id: updatedUser._id,
-      email: updatedUser.email,
-      username: updatedUser.username,
-      rol: updatedUser.rol || null,
-      name: updatedUser.name || null,
-      lastname: updatedUser.lastname || null,
-      phone: updatedUser.phone || null,
-      observations: updatedUser.observations || null,
-      shipping_address: updatedUser.shipping_address || null,
-      shipping_service: updatedUser.shipping_service || null,
+      id: user.id,
+      email: user.email,
+      role: user.rol, // Mapeamos 'rol' de la DB a 'role' para el frontend
+      name: user.name,
     };
 
     return res.status(200).json({
       message: "Usuario actualizado con éxito",
       user: userResponse,
     });
+
   } catch (error) {
     console.error("Error actualizando usuario:", error);
-    return res.status(500).json({ message: "Error actualizando usuario." });
+    
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ message: "El email ya está en uso." });
+    }
+    
+    return res.status(500).json({ message: "Error interno al actualizar usuario." });
   }
 };
 
@@ -304,39 +280,37 @@ const updateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
   const { id } = req.params;
 
-  // Validar que el ID esté presente
   if (!id) {
-    return res
-      .status(400)
-      .json({ message: "Se requiere un ID para eliminar el usuario." });
+    return res.status(400).json({ message: "Se requiere un ID para eliminar el usuario." });
   }
 
   try {
-    // Buscar y eliminar el usuario
-    const deletedUser = await User.findOneAndDelete({ _id: id });
+    // Ejecutar la eliminación
+    const deletedRows = await User.destroy({
+      where: { id: id }
+    });
 
-    // Verificar si el usuario fue encontrado y eliminado
-    if (!deletedUser) {
+    // Si deletedRows es 0, significa que no se encontró el ID
+    if (deletedRows === 0) {
       return res.status(404).json({ message: "Usuario no encontrado." });
     }
 
-    // Respuesta exitosa
     return res.status(200).json({
       message: "Usuario eliminado con éxito",
-      deletedUserId: deletedUser._id, // Devolver el ID del usuario eliminado
+      deletedUserId: id,
     });
+
   } catch (error) {
     console.error("Error eliminando usuario:", error);
 
-    // Manejar errores específicos
-    if (error.name === "CastError") {
+    // Error de sintaxis en el ID (ej. mandar texto cuando es un INTEGER)
+    if (error.name === "SequelizeDatabaseError") {
       return res.status(400).json({ message: "ID de usuario no válido." });
     }
 
-    // Error genérico del servidor
-    return res
-      .status(500)
-      .json({ message: "Error interno del servidor al eliminar el usuario." });
+    return res.status(500).json({ 
+      message: "Error interno del servidor al eliminar el usuario." 
+    });
   }
 };
 
