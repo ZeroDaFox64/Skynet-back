@@ -45,10 +45,12 @@ app.use(
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const companyRoutes = require("./routes/company.routes");
+const productRoutes = require("./routes/product.routes");
 
 app.use("/api/v1", authRoutes);
 app.use("/api/v1", userRoutes);
 app.use("/api/v1", companyRoutes);
+app.use("/api/v1", productRoutes);
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

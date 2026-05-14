@@ -8,14 +8,17 @@ const { Op } = require('sequelize');
  * Registrar un nuevo usuario
  */
 const registerUser = async (req, res) => {
-  const { email, password, username, role, company_id } = req.body;
+  const { email, password, name, role, company_id } = req.body;
 
   // 1. Validar campos obligatorios
-  if (!email || !password) {
+  if (!email) {
     return res.status(400).json({
-      message: "Datos incompletos: faltan datos obligatorios (email y contraseña)",
+      message: "Datos incompletos: falta el correo electrónico",
     });
   }
+
+  // Contraseña por defecto si no se envía
+  const userPassword = password || "Usuario.01";
 
   // 2. Validar formato de correo electrónico
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -39,15 +42,15 @@ const registerUser = async (req, res) => {
 
     // 4. Hashear la contraseña
     const saltRounds = 10;
-    const hash = await bcrypt.hash(password, saltRounds);
+    const hash = await bcrypt.hash(userPassword, saltRounds);
 
     // 5. Crear el usuario
     const newUser = await User.create({
       email: email.toLowerCase(),
       password: hash,
       role: role || 'user',
-      name: username || null,
-      company_id: company_id || null,
+      name: name || null,
+      company_id: company_id || 2,
     });
 
     // 6. Respuesta exitosa (excluyendo el password por seguridad)
