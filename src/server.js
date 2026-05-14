@@ -1,4 +1,4 @@
-const express = require("express"); 
+const express = require("express");
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
@@ -44,9 +44,11 @@ app.use(
 // Routes
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
+const companyRoutes = require("./routes/company.routes");
 
 app.use("/api/v1", authRoutes);
 app.use("/api/v1", userRoutes);
+app.use("/api/v1", companyRoutes);
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));

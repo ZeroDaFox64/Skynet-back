@@ -29,7 +29,7 @@ const user = sequelize.define('user', {
   },
   // PostgreSQL permite guardar arrays de forma nativa
   company_id: {
-    type: DataTypes.UUID,
+    type: DataTypes.INTEGER,
     allowNull: true,
   },
 }, {

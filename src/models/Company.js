@@ -41,16 +41,12 @@ const Company = sequelize.define('Company', {
     validate: {
       isEmail: true, // Validación de formato de email a nivel DB
     },
-  },
-  pay_status: {
-    type: DataTypes.STRING,
-    allowNull: false,
   }
 }, {
   // Opciones adicionales
   timestamps: true,       // Gestiona createdAt y updatedAt automáticamente
   underscored: true,      // Mantiene consistencia snake_case (ej: pay_status, created_at)
-  tableName: 'companies',  // Nombre de la tabla en plural
+  tableName: 'company',
 });
 
 module.exports = Company;

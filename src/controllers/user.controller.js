@@ -8,13 +8,12 @@ const { Op } = require('sequelize');
  * Registrar un nuevo usuario
  */
 const registerUser = async (req, res) => {
-  // Nota: Agregué las variables faltantes para que no den error (lastname, phone, etc.)
-  const { email, password, username} = req.body;
+  const { email, password, username, role, company_id } = req.body;
 
   // 1. Validar campos obligatorios
-  if (!username || !email || !password) {
+  if (!email || !password) {
     return res.status(400).json({
-      message: "Datos incompletos: faltan datos obligatorios",
+      message: "Datos incompletos: faltan datos obligatorios (email y contraseña)",
     });
   }
 
@@ -28,7 +27,6 @@ const registerUser = async (req, res) => {
 
   try {
     // 3. Verificar si el usuario ya existe
-    // En Sequelize usamos findOne con la propiedad 'where'
     const existingUser = await User.findOne({ 
       where: { email: email.toLowerCase() } 
     });
@@ -44,13 +42,12 @@ const registerUser = async (req, res) => {
     const hash = await bcrypt.hash(password, saltRounds);
 
     // 5. Crear el usuario
-    // .create() combina build() y save() en un solo paso
     const newUser = await User.create({
       email: email.toLowerCase(),
       password: hash,
-      role: 'user',
-      name: username,
-      company_id: 0,
+      role: role || 'user',
+      name: username || null,
+      company_id: company_id || null,
     });
 
     // 6. Respuesta exitosa (excluyendo el password por seguridad)
@@ -81,7 +78,7 @@ const registerUser = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     // Obtener todos los usuarios
-    const users = await User.find();
+    const users = await User.findAll();
 
     // Verificar si se encontraron usuarios
     if (users.length === 0) {
@@ -113,7 +110,7 @@ const getAllUsers = async (req, res) => {
  */
 const getUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 20, filters, rol } = req.query;
+    const { page = 1, limit = 20, filters, role } = req.query;
 
     // 1. Convertir a números para evitar errores en el cálculo
     const pageNum = parseInt(page);
@@ -123,8 +120,8 @@ const getUsers = async (req, res) => {
     // 2. Construir el objeto de filtrado (where)
     const where = {};
 
-    if (rol) {
-      where.rol = rol;
+    if (role) {
+      where.role = role;
     }
 
     if (filters) {
@@ -193,12 +190,12 @@ const getUser = async (req, res) => {
     }
 
     // 4. Seleccionar los campos para la respuesta
-    // Usamos .id (sin guion bajo) y .rol (como definimos en tu modelo de Postgres)
     const userResponse = {
       id: user.id,
       email: user.email,
       role: user.role || null, 
       name: user.name || null,
+      company_id: user.company_id || null,
     };
 
     return res.status(200).json({ user: userResponse });
@@ -229,8 +226,7 @@ const updateUser = async (req, res) => {
     return res.status(400).json({ message: "No se ha encontrado un ID" });
   }
 
-  // Ajustado a 'rol' para coincidir con tu modelo de Postgres
-  const allowedFields = ["email", "name", "rol"];
+  const allowedFields = ["email", "name", "role", "company_id"];
 
   const userData = allowedFields.reduce((acc, field) => {
     if (req.body[field] !== undefined) {
@@ -238,6 +234,12 @@ const updateUser = async (req, res) => {
     }
     return acc;
   }, {});
+
+  // Si se actualiza la contraseña, hashearla
+  if (req.body.password) {
+    const saltRounds = 10;
+    userData.password = await bcrypt.hash(req.body.password, saltRounds);
+  }
 
   try {
     // 1. Buscar si el usuario existe
@@ -254,8 +256,9 @@ const updateUser = async (req, res) => {
     const userResponse = {
       id: user.id,
       email: user.email,
-      role: user.rol, // Mapeamos 'rol' de la DB a 'role' para el frontend
+      role: user.role,
       name: user.name,
+      company_id: user.company_id,
     };
 
     return res.status(200).json({
