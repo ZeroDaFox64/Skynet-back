@@ -19,8 +19,8 @@ const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permite cualquier origen dinámicamente, ideal para producción donde la URL del frontend puede variar
-    callback(null, true);
+    // Permite cualquier origen dinámicamente o fallback a true si no hay origin (ej: Postman)
+    callback(null, origin || true);
   },
   credentials: true,
 };
