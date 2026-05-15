@@ -17,11 +17,16 @@ const PORT = process.env.PORT || 4000;
 
 // HTTP Server & WebSockets
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "https://japan-gallery.onrender.com"],
-    credentials: true,
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permite cualquier origen dinámicamente, ideal para producción donde la URL del frontend puede variar
+    callback(null, true);
   },
+  credentials: true,
+};
+
+const io = new Server(server, {
+  cors: corsOptions,
 });
 
 // Guardar la instancia de socket.io para usarla en los controladores (ej. req.app.get("io"))
@@ -223,12 +228,7 @@ const limiter = rateLimit({
 
 // Middlewares
 app.use(limiter);
-app.use(cors(
-  {
-    origin: ["http://localhost:5173", "https://japan-gallery.onrender.com"],
-    credentials: true
-  }
-));
+app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
