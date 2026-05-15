@@ -42,6 +42,8 @@ io.on("connection", (socket) => {
   socket.on("join_mesa", (data) => {
     const mesaId = typeof data === 'string' ? data : data.mesaId;
     const username = typeof data === 'string' ? 'Anónimo' : (data.username || 'Anónimo');
+    const isHost = typeof data === 'string' ? false : (data.isHost || false);
+    const avatar = typeof data === 'string' ? '' : (data.avatar || '');
     const localConsumptions = data.localConsumptions || [];
     const isClosed = data.isClosed || false;
 
@@ -63,9 +65,15 @@ io.on("connection", (socket) => {
       }
     }
     
-    // Añadir usuario si no está en la lista
-    if (!activeMesas[mesaId].users.find(u => u.id === socket.id)) {
-      activeMesas[mesaId].users.push({ id: socket.id, username });
+    // Añadir usuario si no está en la lista o actualizar su rol si es host
+    const existingUser = activeMesas[mesaId].users.find(u => u.id === socket.id);
+    if (!existingUser) {
+      activeMesas[mesaId].users.push({ id: socket.id, username, isHost, avatar });
+    } else {
+      // Si el socket se reconecta, actualizamos su información
+      if (isHost) existingUser.isHost = true;
+      if (avatar) existingUser.avatar = avatar;
+      if (username) existingUser.username = username;
     }
     
     // Guardar referencia en el socket para limpiar en disconnect
@@ -196,6 +204,16 @@ io.on("connection", (socket) => {
     if (activeMesas[mesaId]) {
       activeMesas[mesaId].isClosed = true;
       io.to(mesaId).emit("room_state_update", activeMesas[mesaId]);
+    }
+  });
+
+  // Eliminar mesa (cuando el host la abandona)
+  socket.on("DESTROY_MESA", (payload) => {
+    const { mesaId } = payload;
+    if (activeMesas[mesaId]) {
+      delete activeMesas[mesaId];
+      // Notificar a todos en la mesa que ha sido eliminada
+      io.to(mesaId).emit("mesa_destroyed");
     }
   });
 
