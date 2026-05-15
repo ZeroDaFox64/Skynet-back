@@ -30,6 +30,7 @@
     "pg-hstore": "^2.3.4",
     "postmark": "^4.0.5",
     "sequelize": "^6.37.8",
+    "socket.io": "^4.8.3",
     "speakeasy": "^2.0.0"
   },
   "devDependencies": {
