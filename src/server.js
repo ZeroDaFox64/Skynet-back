@@ -48,11 +48,21 @@ io.on("connection", (socket) => {
     const isClosed = data.isClosed || false;
 
     socket.join(mesaId);
-    
-    // Inicializar la mesa en memoria si no existe
+    // Validación: Prevenir unirse sin host
     if (!activeMesas[mesaId]) {
+      // Si la mesa no existe y no es host, rechazar
+      if (!isHost) {
+        return socket.emit("join_error", { message: "La mesa no existe o no tiene un host activo." });
+      }
+      // Inicializar la mesa en memoria
       activeMesas[mesaId] = { users: [], consumptions: localConsumptions, splitRequests: [], isClosed: isClosed };
     } else {
+      // Si la mesa existe, verificar si hay un host conectado
+      const hasHost = activeMesas[mesaId].users.some(u => u.isHost);
+      if (!hasHost && !isHost) {
+        return socket.emit("join_error", { message: "El host se ha desconectado. No puedes unirte en este momento." });
+      }
+
       if (localConsumptions.length > activeMesas[mesaId].consumptions.length) {
         // Rehidratar si el cliente tiene más consumos guardados localmente (ej. caída del server)
         activeMesas[mesaId].consumptions = localConsumptions;
@@ -90,9 +100,9 @@ io.on("connection", (socket) => {
     const { mesaId, item } = payload;
     if (activeMesas[mesaId]) {
       
-      // 1. Verificar si el mismo usuario ya pidió este mismo producto
+      // 1. Verificar si el mismo usuario ya pidió este mismo producto con la misma nota
       const existingConsumption = activeMesas[mesaId].consumptions.find(
-        c => c.productId === item.productId && c.username === item.username
+        c => c.productId === item.productId && c.username === item.username && (c.note || '') === (item.note || '')
       );
 
       if (existingConsumption) {
@@ -119,13 +129,16 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Escuchar cuando se actualiza la cantidad de un consumo
-  socket.on("UPDATE_QUANTITY", (payload) => {
-    const { mesaId, consumoId, newQuantity } = payload;
+  // Escuchar cuando se actualiza un consumo (cantidad o nota)
+  socket.on("UPDATE_ITEM", (payload) => {
+    const { mesaId, consumoId, newQuantity, newNote } = payload;
     if (activeMesas[mesaId]) {
       const consumption = activeMesas[mesaId].consumptions.find(c => c.id === consumoId);
       if (consumption && newQuantity > 0) {
         consumption.quantity = newQuantity;
+        if (newNote !== undefined) {
+          consumption.note = newNote;
+        }
         io.to(mesaId).emit("room_state_update", activeMesas[mesaId]);
       }
     }
