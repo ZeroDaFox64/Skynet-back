@@ -75,22 +75,22 @@ module.exports = { loginUser };
 const sendOTP = async (req, res) => {
   const { email } = req.body;
 
-  // Buscar usuario en la DB
-  const user = await User.findOne({ email: email.toLowerCase() });
-
   // Validar que el email esté presente
   if (!email) {
     return res.status(400).json({ message: "El email es requerido." });
-  }
-
-  if (!user) {
-    return res.status(404).json({ message: "Usuario no encontrado." });
   }
 
   // Validar formato de email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ message: "Formato de correo electrónico inválido." });
+  }
+
+  // Buscar usuario en la DB
+  const user = await User.findOne({ where: { email: email.toLowerCase() } });
+
+  if (!user) {
+    return res.status(404).json({ message: "Usuario no encontrado." });
   }
 
   try {
@@ -123,23 +123,13 @@ const sendOTP = async (req, res) => {
     // Enviar el correo electrónico
     await client.sendEmail(mailOptions);
 
-    // Guardar el token en la DB
-    const userTokens = await UserTokens.findOne({ user: user._id });
-    if (userTokens) {
-      userTokens.otp_token = token;
-      await userTokens.save();
-    } else {
-      const userTokens = new UserTokens({
-        user: user._id,
-        otp_token: token,
-      });
-      await userTokens.save();
-    }
-
-
+    // No guardamos el token en la DB para evitar problemas de esquema UUID,
+    // simplemente lo devolvemos para que el frontend lo utilice.
+    
     // Respuesta exitosa
     return res.status(200).json({
       message: "Código OTP enviado correctamente.",
+      token: token,
     });
   } catch (error) {
     console.error("Error enviando OTP:", error);
@@ -158,27 +148,22 @@ const sendOTP = async (req, res) => {
  * Verificar OTP y actualizar el rol del usuario a "verified user"
  */
 const verifyOTP = async (req, res) => {
-  const { otp, email } = req.body;
+  const { otp, email, token } = req.body;
 
   // Validar que el OTP y el token estén presentes
-  if (!otp || !email) {
-    return res.status(400).json({ message: "OTP requerida." });
+  if (!otp || !email || !token) {
+    return res.status(400).json({ message: "OTP y token requeridos." });
   }
 
   // Buscar el token en la DB
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const user = await User.findOne({ where: { email: email.toLowerCase() } });
 
-  const userTokens = await UserTokens.findOne({ user: user._id });
-
-  if (!userTokens) {
+  if (!user) {
     return res.status(404).json({ message: "Usuario no encontrado." });
   }
 
-  // Obtener el token JWT
-  const token = userTokens.otp_token;
-
   try {
-    // Verificar y decodificar el token JWT
+    // Verificar y decodificar el token JWT recibido del frontend
     const decodedUser = jwt.verify(token, process.env.SECRET_JWT_KEY);
 
     // Verificar el OTP
@@ -197,29 +182,14 @@ const verifyOTP = async (req, res) => {
     }
 
     // Actualizar el rol del usuario a "verified user"
-    const updatedUser = await User.findOneAndUpdate(
-      { email: user.email.toLowerCase() },
-      { rol: "verified user" },
-      { new: true }
-    );
-
-    // Si no se encuentra el usuario, devolver error
-    if (!updatedUser) {
-      return res.status(404).json({ message: "Usuario no encontrado." });
-    }
+    await user.update({ role: "verified user" });
 
     // Crear un objeto de respuesta sin la contraseña
     const userResponse = {
-      id: updatedUser._id,
-      username: updatedUser.username,
-      email: updatedUser.email.toLowerCase(),
-      rol: updatedUser.rol,
-      name: updatedUser.name || null,
-      lastname: updatedUser.lastname || null,
-      phone: updatedUser.phone || null,
-      avatar: updatedUser.avatar || null,
-      shipping_address: updatedUser.shipping_address || null,
-      shipping_service: updatedUser.shipping_service || null,
+      id: user.id,
+      email: user.email.toLowerCase(),
+      role: user.role,
+      name: user.name || null,
     };
 
     // Respuesta exitosa
@@ -257,7 +227,7 @@ const changePassword = async (req, res) => {
 
   try {
     // Buscar el usuario por ID
-    const user = await User.findOne({ _id: id });
+    const user = await User.findByPk(id);
 
     // Verificar si el usuario existe
     if (!user) {
@@ -274,16 +244,7 @@ const changePassword = async (req, res) => {
     const hash = await bcrypt.hash(new_password, 10);
 
     // Actualizar la contraseña del usuario
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: id },
-      { password: hash },
-      { new: true } // Devuelve el documento actualizado
-    );
-
-    // Verificar si la actualización fue exitosa
-    if (!updatedUser) {
-      return res.status(400).json({ message: "Error al cambiar la contraseña." });
-    }
+    await user.update({ password: hash });
 
     // Respuesta exitosa
     return res.status(200).json({ message: "Contraseña cambiada con éxito." });
@@ -319,7 +280,7 @@ const sendResetLink = async (req, res) => {
 
   try {
     // Buscar el usuario por email (insensible a mayúsculas/minúsculas)
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ where: { email: email.toLowerCase() } });
 
     // Verificar si el usuario existe
     if (!user) {
@@ -327,7 +288,7 @@ const sendResetLink = async (req, res) => {
     }
 
     // Generar un token JWT con expiración de 10 minutos
-    const token = jwt.sign({ id: user._id }, process.env.SECRET_JWT_KEY, {
+    const token = jwt.sign({ id: user.id }, process.env.SECRET_JWT_KEY, {
       expiresIn: "10m",
     });
 
@@ -390,17 +351,13 @@ const resetPassword = async (req, res) => {
     // Hashear la nueva contraseña
     const hash = await bcrypt.hash(password, 10);
 
-    // Actualizar la contraseña del usuario
-    const updatedUser = await User.findOneAndUpdate(
-      { _id: decoded.id },
-      { password: hash },
-      { new: true } // Devuelve el documento actualizado
-    );
-
-    // Verificar si la actualización fue exitosa
-    if (!updatedUser) {
+    // Buscar el usuario y actualizar la contraseña
+    const user = await User.findByPk(decoded.id);
+    if (!user) {
       return res.status(404).json({ message: "Usuario no encontrado." });
     }
+    
+    await user.update({ password: hash });
 
     // Respuesta exitosa
     return res.status(200).json({ message: "Contraseña cambiada con éxito." });

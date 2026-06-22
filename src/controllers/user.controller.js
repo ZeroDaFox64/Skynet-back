@@ -50,7 +50,7 @@ const registerUser = async (req, res) => {
       password: hash,
       role: role || 'user',
       name: name || null,
-      company_id: company_id || 2,
+      company_id: company_id || null,
     });
 
     // 6. Respuesta exitosa (excluyendo el password por seguridad)

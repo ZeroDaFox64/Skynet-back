@@ -19,10 +19,10 @@ const user = sequelize.define('user', {
     allowNull: false,
   },
   // Lo definimos como propiedad simple (UUID es el estándar para IDs modernos)
-  user_token: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
+  // user_token: {
+  //   type: DataTypes.UUID,
+  //   allowNull: true,
+  // },
   name: {
     type: DataTypes.STRING,
     allowNull: true,
